@@ -1,10 +1,4 @@
-﻿var templates = {
-    request: [],
-    response: []
-}
-
-
-var _homepage = {
+﻿var _homepage = {
     def: function _homepage() {
         var col = document.getElementsByClassName('paper-button-2');
         for (i = 0; i < col.length; i++) {
@@ -184,7 +178,7 @@ function getExp(o) {
 // phase -1 end
 */
 
-var app = {
+exports.app = {
     name: 'Google Play Music',
     sequence: [
         { //listener: {'id': 1, 'event': 'result', 'callback': function(e){}}
@@ -287,5 +281,5 @@ var app = {
     ]
 };
 
-// TODO: uncomment
-// apps.add(app);
+
+//apps.add(app);
