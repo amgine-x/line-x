@@ -1,8 +1,22 @@
 {
-	"name": "app",
-	"version": "0.0.1",
-	"description": "app",
-	"dependencies": {
-		"socket.io": "^2.1.1"
-	}
+  "name": "engine.x",
+  "version": "1.0.0",
+  "description": "process manager",
+  "main": "proc-manager.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oirabor/untitled.git"
+  },
+  "author": "moixa",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/oirabor/untitled/issues"
+  },
+  "homepage": "https://github.com/oirabor/untitled#readme",
+  "dependencies": {
+    "ws": "^6.1.0"
+  }
 }

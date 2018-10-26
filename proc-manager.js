@@ -59,6 +59,8 @@ n_stat.stdout.on('data', function (data) {
                 getUsedPorts(n_statResult);
                 if (usedPorts.length == 30) {
                     n_statDone = true;
+                    // TODO: log used ports to stdout
+                    console.log(usedPorts);
                     console.log('************************port updates complete***************************');
                 }
             }
@@ -149,7 +151,7 @@ function getMsg(data) {
 }
 
 function createSubprocess(uid, services) {
-    var args = ['browser.js', uid];
+    var args = ['--inspect=127.0.0.1:8081', '--stack_size=50000', 'browser.js', uid];
     services.forEach(function (val) {
         switch (val) {
             case 'Google Play Music':
@@ -170,13 +172,18 @@ function createSubprocess(uid, services) {
         }
     });
 
-    var proc = cp.spawn('node', args, {detached: false});
+    var proc = cp.spawn('node', args, {detached: true});
     proc.stdin.on('data', function (data) {
         console.log(data);
     });
     proc.stdout.on('data', function (data) {
         console.log(String(proc.pid) + ':', data.toString('utf8'));
     });
+    proc.stdout.on('error', function (err) {
+        console.log(err.toString('utf8'));
+    });
+    proc.stderr.on('data', function (data) {console.log(data.toString('utf8'));});
+    proc.stderr.on('error', function (err) {console.log(err.toString('utf8'));});
     proc.on('error', function (err) {
         console.log(err.toString('utf8'));
     });
@@ -230,6 +237,6 @@ function getUsedPorts(result) {
     } while (index != -1);
 
     n_statResultPos = pos;
-    console.log(usedPorts);
-    console.log('ports updated!');
+    //console.log(usedPorts);
+    //console.log('ports updated!');
 }

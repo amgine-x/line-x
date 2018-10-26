@@ -2,11 +2,8 @@ const execFile = require('child_process').execFile;
 const http = require('http');
 const WebSocket = require('ws');
 const gpm = require('./gpm.js');
-const loaded = require('./loaded.js');
-var kill = false;
-function keepAlive(kill) {
-    console.log('------------');
-}
+const eval = require('./evaluator.js');
+
 //setInterval(keepAlive(kill), 10000);
 process.stdin.resume();
 process.on('exit', function (code) {
@@ -17,7 +14,7 @@ process.on('uncaughtException', function (err) {
 });
 // TODO: fix module export error in loaded
 
-console.log('-----------------------------------------');
+console.log('----------------browser.js-------------------------');
 console.log(process.argv);
 
 var uid = process.argv[2];
@@ -25,7 +22,7 @@ var port = process.argv[3];
 
 function launchChrome(url, callback) {
     // TODO: specify chrome path
-    const CHROME = 'E:\\downloads\\chrome\\chrome-win32\\chrome.exe';
+    const CHROME = 'C:\\users\\user\\documents\\chrome\\chrome.exe';
     var user_data_dir = '--user-data-dir=E:\\Devtools\\' + uid;
     var remote_debugging_port = '--remote-debugging-port=' + port;
     var gpu = '--disable-gpu';
@@ -41,11 +38,12 @@ function launchChrome(url, callback) {
     ];
     var _cp = execFile(CHROME, args, callback);
     process.stdin.resume();
+    return _cp;
 }
 
 function launch() {
     console.log('Launching chrome...');
-    launchChrome('https://www.google.com', function (err, stdout, stderr) {
+    var result = launchChrome('https://www.google.com', function (err, stdout, stderr) {
         if (err) {
             console.log('***********************');
             console.log('err:', err);
@@ -61,14 +59,23 @@ function launch() {
         console.log('chrome instance at '+String(port)+' closed!');
         // TODO: release port & end process
     });
-    console.log('chrome running at '+String(port)+'...');
+    return result;
 }
 
-launch();
+// TODO: post-launch promises... also, BWAHHHHHHHH
+launch(); console.log('chrome running at '+String(port)+'...');
 
+/* var postLaunchPromise = new Promise(function (resolve, reject) {
+    var result = launch();
 
+    if (result) {
+        resolve('chrome running at '+String(port)+'...');
+    } else {
+        reject(Error('chrome failed to launch'));
+    }
+}); */
 
-var domains = [// if 'events' include 'callbacks'
+global.domains = [// if 'events' include 'callbacks'
     {
         'name': 'Runtime',
         'commands': [
@@ -124,13 +131,18 @@ var domains = [// if 'events' include 'callbacks'
     }
 ];
 
-var socket;
+global.socket;
 global.id = 1;
 global.execContextId = 1;
 
-var evaluator = new loaded.evaluator(); console.log('evaluator:', evaluator);
-var apps = new apps();
-apps.add(gpm.app); console.log(apps);
+global.evaluator = new eval.evaluator(); console.log('evaluator:', evaluator);
+global.apps = new apps(); console.log(global.apps);
+
+global.gplaymusic = gpm.app;
+console.log(global.gplaymusic);
+if (global.gplaymusic) {
+    global.apps.add(global.gplaymusic);
+}
 
 global.listeners = {
     event: [],
@@ -224,67 +236,94 @@ global.listeners = {
 global.templates = {
     request: [],
     response: []
-}
-
-var loadDetector = new loadDetector();
+};
+global.loadDetector = new loadDetector();
+global.sendCommand = function (msg) {
+    global.socket.send(JSON.stringify(msg));
+    
+    global.loadDetector.activate();
+};
 
 
 // TODO: get ws address
 var addr = 'http://localhost:'+String(port)+'/json'; console.log(addr);
 var tabs = '';
 
-http.get(addr, function (resp) {
+http.get({method: 'GET', path: '/json', port: Number(port)}, function (resp) {
     resp.on('data', function (chunk) {
         tabs += chunk;
     });
     
     resp.on('end', function () {
         tabs = JSON.parse(tabs); console.log('inspectable pages:', tabs);
-        var ws;
+        var wsAddr;
 
         for (i = 0; i < tabs.length; i++) {
             if (tabs[i].url == 'https://www.google.com/') {
                 // TODO: get socket addr
-                ws = tabs[i].webSocketDebuggerUrl;
+                wsAddr = tabs[i].webSocketDebuggerUrl;
                 break;
             }
         }
 
-        // Create Websocket connection.
-        socket = new WebSocket(ws);
-
-        // Connection opened
-        socket.addEventListener('open', function open() {
-            console.log('initialization!');
-            _init(domains);
-        });
-
-        // Listen for messages
-        socket.addEventListener('message', function msg(data) {
-            console.log(data.data);
-            var frame = JSON.parse(data.data.toString('utf8')); // {"id":1,"result":{..},"method":"abcd","params":{..}}
-            
-            // TODO: emit event for executionContextCreated
-            if (frame.method == 'Runtime.executionContextCreated') {
-                execContextId = Number(frame.params.context.id);
-            };
-
-            listeners.emit(frame);
-
-            var msg = {
-                timeStamp: Date.now()
-            };
-            loadDetector.send(msg);
-        });
+        wsConn(wsAddr); console.log('current tab:', wsAddr);
     });
 }).on('error', function (err) {
     console.log('Error connecting to chrome instance:', err);
 });
 
+function wsConn(addr, ws = global.socket) {
+    // Create Websocket connection.
+    if (ws) {
+        if (ws.readyState !== 0 && ws.readyState !== 1) {
+            ws = new WebSocket(addr);
+            addWsListeners();
+        }
+    } else {
+        ws = new WebSocket(addr);
+        addWsListeners();
+    }
+}
+
+function addWsListeners () {
+    // Connection opened
+    global.socket.addEventListener('open', function open() {
+        console.log('initialization!');
+        _init(global.domains);
+    });
+    global.socket.on('close', function (e) {
+        setTimeout(wsConn(global.socket), 5000);
+    });
+
+    global.socket.on('error', function (err) {
+        console.log('ws-conn-err:', err);
+        console.log('*********Reconnecting**************')
+        setTimeout(wsConn(global.socket), 5000);
+    });
+
+    // Listen for messages
+    global.socket.addEventListener('message', function msg(data) {
+        var frame = JSON.parse(data.data.toString('utf8')); // {"id":1,"result":{..},"method":"abcd","params":{..}}
+        //console.log();
+
+        // TODO: emit event for executionContextCreated
+        if (frame.method == 'Runtime.executionContextCreated') {
+            global.execContextId = Number(frame.params.context.id);
+        };
+
+        global.listeners.emit(frame);
+
+        var msg = {
+            timeStamp: Date.now()
+        };
+        global.loadDetector.send(msg);
+    });
+}
+
 function _init(domains) {
     for (i = 0; i < domains.length; i++) {
         var domain = domains[i];
-        var _id = id++;
+        var _id = global.id++;
         var msg = {
             'id': _id, 
             'method': String(domain.name) + '.enable'
@@ -305,7 +344,7 @@ function _init(domains) {
                     l.callback = domain.callbacks[e];
                 }
 
-                listeners.add(l.event, l);
+                global.listeners.add(l.event, l);
             });
         }
 
@@ -325,22 +364,18 @@ function _init(domains) {
                 }
 
                 l.callback = domain.result[key];
-                listeners.add(l.event, l);
+                global.listeners.add(l.event, l);
             }
         }
 
-        sendCommand(msg);
+        global.sendCommand(msg);
 
         if (domain.hasOwnProperty('commands')) {
             domain.commands.forEach(function (cmd) {
-                sendCommand(cmd);
+                global.sendCommand(cmd);
             });
         }
     }
-}
-
-global.sendCommand = function (msg) {
-    socket.send(JSON.stringify(msg));
 }
 
 function apps() {
@@ -349,21 +384,12 @@ function apps() {
     this.evaluated = [];
 
     this.getCurrentApp = function () {
-        var err = {method: 'apps.getCurrentApp'};
-
         if (this.currentApp) {
             return {name: this.currentApp, sequence: this.apps[this.currentApp]};
         }
     };
 
     this.setCurrentApp = function (name) {
-        var err = {method: 'apps.setCurrentApp'};
-
-        if (!name) {
-            err.message = "Application's name must be specified.";
-            console.log(err);
-        }
-
         var keys = this.getApps();
 
         for (var key in keys) {
@@ -373,7 +399,7 @@ function apps() {
             }
         }
 
-        err.message = name+" was not found in apps collection. ";
+        var err = name+" was not found in apps collection.";
         console.log(err);
     };
 
@@ -383,11 +409,13 @@ function apps() {
         if (!app.name) {
             err.message = "Application property 'name' must be specified.";
             console.log(err);
+            return;
         }
 
         if (!app.sequence) {
             err.message = "Application navigation 'sequence' property must be included. See docs for help.";
             console.log(err);
+            return;
         }
 
         this.apps[app.name] = app.sequence;
@@ -399,6 +427,7 @@ function apps() {
         if (!name) {
             err.message = "Application name must be specified.";
             console.log(err);
+            return;
         }
 
         var keys = this.getApps();
@@ -458,125 +487,50 @@ function loadDetector() {
     this.time = null;
     this.active = false;
 
-    this.send = function (msg = null) {
-        if (!this.active) {
-            this.active = true;
+    this.send = function (msg) {
+        if (this.active) {
             this.timeStamp = msg.timeStamp;
-            this.send(msg);
-        } else {
-            if (msg) {
-                this.timeStamp = msg.timeStamp;
-            }
-
-            var now = Date.now();
-            var t = (now - this.timeStamp) / 1000;
-            
-            if (t >= 0.5) {
-                this.time = t;
-                console.log('Page loaded in', this.time);
-                
-                if (this.active) {
-                    evaluator.init(apps);
-                    this.disable();
-                }
-            }
         }
     };
 
     this._metric = function () {
+        console.log('_metric active:', this.active, this);
         if (this.active) {
             var now = Date.now();
             var t = (now - this.timeStamp) / 1000;
 
             if (t >= 0.5) {
+                this.disable();
+
                 this.time = t
-                console.log('Page loaded in', this.time);
+                console.log('Page loaded in', this.time, this.active, this);
                 
-                if (this.active) {
-                    evaluator.init(apps);
-                    this.disable();
-                }
+                global.evaluator.init(global.apps);
             } else {
-                setTimeout(this._metric, 1000);
+                try {
+                    //this._metric();
+                    console.log('_metric active:', t, this.timeStamp, this);
+                    setTimeout(function () {
+                        global.loadDetector._metric
+                    }, 5000);
+                } catch (err) {
+                    console.log(err);
+                }
             }
+        }
+    };
+
+    this.activate = function () {
+        if (!this.active) {
+            this.active = true;
+            console.log('loadDetector active:', this.active);
         }
     };
 
     this.disable = function () {
         if (this.active) {
             this.active = false;
+            console.log('loadDetector active:', this.active);
         }
     };
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// TODO: get env variables and include _websocket
-// TODO: send auth frame
-
