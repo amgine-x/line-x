@@ -272,15 +272,15 @@ http.get({method: 'GET', path: '/json', port: Number(port)}, function (resp) {
     console.log('Error connecting to chrome instance:', err);
 });
 
-function wsConn(addr, ws = global.socket) {
+function wsConn(addr) {
     // Create Websocket connection.
-    if (ws) {
-        if (ws.readyState !== 0 && ws.readyState !== 1) {
-            ws = new WebSocket(addr);
+    if (global.socket) {
+        if (global.socket.readyState !== 0 && global.socket.readyState !== 1) {
+            global.socket = new WebSocket(addr);
             addWsListeners();
         }
     } else {
-        ws = new WebSocket(addr);
+        global.socket = new WebSocket(addr);
         addWsListeners();
     }
 }
@@ -486,10 +486,17 @@ function loadDetector() {
     this.timeStamp = null;
     this.time = null;
     this.active = false;
+    this.msgCount = 0;
 
     this.send = function (msg) {
         if (this.active) {
             this.timeStamp = msg.timeStamp;
+
+            if (!this.msgCount) {
+                this._metric();
+            }
+
+            this.msgCount++;
         }
     };
 
