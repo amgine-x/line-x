@@ -151,7 +151,7 @@ function getMsg(data) {
 }
 
 function createSubprocess(uid, services) {
-    var args = ['--inspect=127.0.0.1:8081', '--stack_size=50000', 'browser.js', uid];
+    var args = ['--inspect=127.0.0.1:8081', '--stack_size=500000', 'browser.js', uid];
     services.forEach(function (val) {
         switch (val) {
             case 'Google Play Music':
@@ -172,7 +172,28 @@ function createSubprocess(uid, services) {
         }
     });
 
-    var proc = cp.spawn('node', args, {detached: true});
+    var proc = cp.exec(
+        'node --inspect-brk --stack_size=50000 browser.js', 
+        { 
+            maxBuffer: 1024 * 500000,
+            env: {
+                'uid': String(uid),
+                'port': String(port++),
+                'app': './gpm'
+            }
+        }, 
+        function (error, stdout, stderr) {
+            if (error) {
+                console.log(error.toString('utf8'));
+            }
+            if (stdout) {
+                console.log(stdout.toString('utf8'));
+            }
+            if (stderr) {
+                console.log(stderr.toString('utf8'));
+            }
+        }
+    );
     proc.stdin.on('data', function (data) {
         console.log(data);
     });

@@ -17,14 +17,16 @@ process.on('uncaughtException', function (err) {
 console.log('----------------browser.js-------------------------');
 console.log(process.argv);
 
-var uid = process.argv[2];
-var port = process.argv[3];
+/* var uid = process.argv[2];
+var port = process.argv[3]; */
+var uid = process.env.uid;
+var port = Number(process.env.port);
 
 function launchChrome(url, callback) {
     // TODO: specify chrome path
     const CHROME = 'C:\\users\\user\\documents\\chrome\\chrome.exe';
     var user_data_dir = '--user-data-dir=E:\\Devtools\\' + uid;
-    var remote_debugging_port = '--remote-debugging-port=' + port;
+    var remote_debugging_port = '--remote-debugging-port=' + String(port);
     var gpu = '--disable-gpu';
     var first_run = '--no-first-run';
     var default_browser_check = '--no-default-browser-check';
@@ -36,9 +38,9 @@ function launchChrome(url, callback) {
         first_run, default_browser_check, 
         url
     ];
-    var _cp = execFile(CHROME, args, callback);
+    var _cp = execFile(CHROME, args, {maxBuffer: 1024 * 50000}, callback);
     process.stdin.resume();
-    return _cp;
+    //return _cp;
 }
 
 function launch() {
@@ -59,21 +61,11 @@ function launch() {
         console.log('chrome instance at '+String(port)+' closed!');
         // TODO: release port & end process
     });
-    return result;
+    //return result;
 }
 
-// TODO: post-launch promises... also, BWAHHHHHHHH
 launch(); console.log('chrome running at '+String(port)+'...');
 
-/* var postLaunchPromise = new Promise(function (resolve, reject) {
-    var result = launch();
-
-    if (result) {
-        resolve('chrome running at '+String(port)+'...');
-    } else {
-        reject(Error('chrome failed to launch'));
-    }
-}); */
 
 global.domains = [// if 'events' include 'callbacks'
     {
@@ -136,10 +128,9 @@ global.id = 1;
 global.execContextId = 1;
 
 global.evaluator = new eval.evaluator(); console.log('evaluator:', evaluator);
-global.apps = new apps(); console.log(global.apps);
-
+global.apps = new apps();
 global.gplaymusic = gpm.app;
-console.log(global.gplaymusic);
+
 if (global.gplaymusic) {
     global.apps.add(global.gplaymusic);
 }
@@ -240,8 +231,6 @@ global.templates = {
 global.loadDetector = new loadDetector();
 global.sendCommand = function (msg) {
     global.socket.send(JSON.stringify(msg));
-    
-    global.loadDetector.activate();
 };
 
 
@@ -249,38 +238,61 @@ global.sendCommand = function (msg) {
 var addr = 'http://localhost:'+String(port)+'/json'; console.log(addr);
 var tabs = '';
 
-http.get({method: 'GET', path: '/json', port: Number(port)}, function (resp) {
-    resp.on('data', function (chunk) {
-        tabs += chunk;
-    });
-    
-    resp.on('end', function () {
-        tabs = JSON.parse(tabs); console.log('inspectable pages:', tabs);
-        var wsAddr;
+getInspectablePages();
 
-        for (i = 0; i < tabs.length; i++) {
-            if (tabs[i].url == 'https://www.google.com/') {
-                // TODO: get socket addr
-                wsAddr = tabs[i].webSocketDebuggerUrl;
-                break;
+function getInspectablePages() {
+    http.get({method: 'GET', path: '/json', port: Number(port)}, function (resp) {
+        resp.on('data', function (chunk) {
+            tabs += chunk;
+        });
+
+        resp.on('end', function () {
+            tabs = JSON.parse(tabs); console.log('inspectable pages:', tabs);
+            var wsAddr;
+
+            for (i = 0; i < tabs.length; i++) {
+                if (tabs[i].url == 'https://www.google.com/') {
+                    // TODO: get socket addr
+                    wsAddr = tabs[i].webSocketDebuggerUrl;
+                    break;
+                }
             }
-        }
+            
+            if (!global.socket) {
+                wsConn(wsAddr); console.log('current tab:', wsAddr);
+            }
+        });
+    }).on('error', function (err) {
+        console.log('Error connecting to chrome instance:', err);
+        console.log('Reconnecting...');
+        setTimeout(getInspectablePages, 10000);
+    });   
+}
 
-        wsConn(wsAddr); console.log('current tab:', wsAddr);
-    });
-}).on('error', function (err) {
-    console.log('Error connecting to chrome instance:', err);
-});
-
-function wsConn(addr) {
+function wsConn(wsAddr) {
+    var addr = String(wsAddr);
     // Create Websocket connection.
     if (global.socket) {
         if (global.socket.readyState !== 0 && global.socket.readyState !== 1) {
-            global.socket = new WebSocket(addr);
+            try {
+                global.socket = new WebSocket(addr);
+            } catch (err) {
+                console.log('econnrefused. Reconnecting...');
+                wsConn(wsAddr);
+                return;
+            }
+            
             addWsListeners();
         }
     } else {
-        global.socket = new WebSocket(addr);
+        try {
+            global.socket = new WebSocket(addr);
+        } catch (err) {
+            console.log('init econnrefused. Reconnecting...');
+            wsConn(wsAddr);
+            return;
+        }
+        
         addWsListeners();
     }
 }
@@ -304,7 +316,7 @@ function addWsListeners () {
     // Listen for messages
     global.socket.addEventListener('message', function msg(data) {
         var frame = JSON.parse(data.data.toString('utf8')); // {"id":1,"result":{..},"method":"abcd","params":{..}}
-        //console.log();
+        //console.log('frame');
 
         // TODO: emit event for executionContextCreated
         if (frame.method == 'Runtime.executionContextCreated') {
@@ -489,37 +501,39 @@ function loadDetector() {
     this.msgCount = 0;
 
     this.send = function (msg) {
+        if (!this.msgCount && !this.active) {
+            this.activate();
+        }
         if (this.active) {
             this.timeStamp = msg.timeStamp;
 
             if (!this.msgCount) {
                 this._metric();
+                //
+                
             }
-
+            //Todo: move up to if block
             this.msgCount++;
         }
     };
 
     this._metric = function () {
-        console.log('_metric active:', this.active, this);
         if (this.active) {
             var now = Date.now();
             var t = (now - this.timeStamp) / 1000;
+            console.log(t);
 
             if (t >= 0.5) {
                 this.disable();
 
                 this.time = t
-                console.log('Page loaded in', this.time, this.active, this);
+                console.log('Page loaded in', this.time);
+                this.msgCount = 0;
                 
                 global.evaluator.init(global.apps);
             } else {
                 try {
-                    //this._metric();
-                    console.log('_metric active:', t, this.timeStamp, this);
-                    setTimeout(function () {
-                        global.loadDetector._metric
-                    }, 5000);
+                    this._metric();
                 } catch (err) {
                     console.log(err);
                 }
@@ -528,16 +542,21 @@ function loadDetector() {
     };
 
     this.activate = function () {
-        if (!this.active) {
+        if (!this.active && !this.msgCount) {
             this.active = true;
             console.log('loadDetector active:', this.active);
         }
     };
 
     this.disable = function () {
-        if (this.active) {
+        if (this.active && this.msgCount) {
             this.active = false;
+            this.msgCount = 0;
             console.log('loadDetector active:', this.active);
         }
+    };
+
+    this.reset = function () {
+        this.msgCount = 0;
     };
 }
