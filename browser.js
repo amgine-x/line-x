@@ -231,6 +231,7 @@ global.templates = {
 global.loadDetector = new loadDetector();
 global.sendCommand = function (msg) {
     global.socket.send(JSON.stringify(msg));
+    global.loadDetector.reset();
 };
 
 
@@ -508,12 +509,10 @@ function loadDetector() {
             this.timeStamp = msg.timeStamp;
 
             if (!this.msgCount) {
-                this._metric();
-                //
-                
+                setTimeout(this._metric.bind(this), 1000);
+                //this._metric();
+                this.msgCount++;
             }
-            //Todo: move up to if block
-            this.msgCount++;
         }
     };
 
