@@ -1,4 +1,4 @@
-﻿var _homepage = {
+var _homepage = {
     def: function _homepage() {
         var col = document.getElementsByClassName('paper-button-2');
         for (i = 0; i < col.length; i++) {
@@ -26,7 +26,7 @@ var _signin_ident = {
         btn.onmouseenter;
         btn.click();
     }, // TODO: get value
-    call: " _signin_ident('a.wilson.awe');"
+    call: " _signin_ident('success.irabor.26');"
 }
 
 var _signin_pwd = {
@@ -43,7 +43,7 @@ var _signin_pwd = {
         btn.onmouseenter;
         btn.click();
     }, // TODO: get value
-    call: " _signin_pwd('Osasenaga1');"
+    call: " _signin_pwd('GnssSbrr1I%');"
 }
 
 var _signin_chooser = {
@@ -223,7 +223,7 @@ exports.app = {
                             templates.request[service] = frame.params.request;
 
                             var l = {
-                                'id': id,
+                                'id': id, //global
                                 'event': 'Network.loadingFinished',
                                 'service': service,
                                 'requestId': requestId,
@@ -248,7 +248,7 @@ exports.app = {
                                                     templates.response[this.service] = JSON.parse(String(frame.result.body).replace('\n', ''));
                                                     console.log(templates);
                                                 } else {
-                                                    console.log('error!', frame);
+                                                    console.log('getResponseBody-error:', frame);
                                                 }
                                             }
                                         });

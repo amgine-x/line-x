@@ -184,13 +184,13 @@ function createSubprocess(uid, services) {
         }, 
         function (error, stdout, stderr) {
             if (error) {
-                console.log(error.toString('utf8'));
+                console.log('process error:', error.toString('utf8'));
             }
             if (stdout) {
-                console.log(stdout.toString('utf8'));
+                console.log('process stdout:', stdout.toString('utf8'));
             }
             if (stderr) {
-                console.log(stderr.toString('utf8'));
+                console.log('process stderr:', stderr.toString('utf8'));
             }
         }
     );

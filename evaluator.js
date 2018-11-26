@@ -5,10 +5,10 @@
 
     this.init = function (apps) {
         var app = apps.getCurrentApp();
-        console.log('Evaluator:', apps);
+        //console.log('Evaluator:', apps);
 
         if (app) {
-            this.continue(this._default(), app.sequence);
+            this.continue(this._default(), app.sequence, apps);
         } else {
             if (apps.next()) {
                 var msg = {
@@ -24,7 +24,7 @@
         }
     };
 
-    this.continue = function (browserLoc, sequence) {
+    this.continue = function (browserLoc, sequence, apps) {
         if (browserLoc) {
             var page;
             var _id = global.id++;
@@ -50,7 +50,8 @@
 
             switch (page.phase) {
                 case -1:
-                    // TODO: next
+                    apps.next();
+                    
                     var msg = {
                         'id': 1,
                         'method': 'Network.getCookies'
@@ -96,7 +97,7 @@
                 'event': 'result',
                 'callback': function (frame) {
                     if (frame.result.result.type == 'string') {
-                        evaluator.location = frame.result.result.value;
+                        global.evaluator.location = frame.result.result.value;
                     }
                 }
             });

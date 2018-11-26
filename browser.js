@@ -4,8 +4,7 @@ const WebSocket = require('ws');
 const gpm = require('./gpm.js');
 const eval = require('./evaluator.js');
 
-//setInterval(keepAlive(kill), 10000);
-process.stdin.resume();
+
 process.on('exit', function (code) {
     console.log(code);
 });
@@ -323,7 +322,8 @@ function addWsListeners () {
         if (frame.method == 'Runtime.executionContextCreated') {
             global.execContextId = Number(frame.params.context.id);
         };
-
+        
+        //console.log(frame);
         global.listeners.emit(frame);
 
         var msg = {
@@ -520,7 +520,6 @@ function loadDetector() {
         if (this.active) {
             var now = Date.now();
             var t = (now - this.timeStamp) / 1000;
-            console.log(t);
 
             if (t >= 0.5) {
                 this.disable();
@@ -531,11 +530,12 @@ function loadDetector() {
                 
                 global.evaluator.init(global.apps);
             } else {
-                try {
+                setTimeout(this._metric.bind(this), 1000);
+                /* try {
                     this._metric();
                 } catch (err) {
-                    console.log(err);
-                }
+                    console.log(err.toString('utf8'));
+                } */
             }
         }
     };
