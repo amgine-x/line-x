@@ -14,17 +14,19 @@ process.on('uncaughtException', function (err) {
 // TODO: fix module export error in loaded
 
 console.log('----------------browser.js-------------------------');
-console.log(process.argv);
+console.log('browser-argv:', process.argv);
 
 /* var uid = process.argv[2];
 var port = process.argv[3]; */
 var uid = process.env.uid;
 var port = Number(process.env.port);
+console.log('browser-env:', uid, port);
 
 function launchChrome(url, callback) {
     // TODO: specify chrome path
-    const CHROME = 'C:\\users\\user\\documents\\chrome\\chrome.exe';
-    var user_data_dir = '--user-data-dir=E:\\Devtools\\' + uid;
+    //const CHROME = 'C:\\users\\Jon Doerian\\documents\\chrome\\chrome.exe';
+    const CHROME = 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'
+    var user_data_dir = '--user-data-dir=C:\\users\\Jon Doerian\\Documents\\untitled-user-data-dir\\' + uid;
     var remote_debugging_port = '--remote-debugging-port=' + String(port);
     var gpu = '--disable-gpu';
     var first_run = '--no-first-run';
@@ -46,19 +48,19 @@ function launch() {
     console.log('Launching chrome...');
     var result = launchChrome('https://www.google.com', function (err, stdout, stderr) {
         if (err) {
-            console.log('***********************');
-            console.log('err:', err);
+            //console.log('**********Chrome Launch Error*************');
+            console.log('chrome-launch-err:', err);
             //process.exit(0);
         }
         if (stdout) {
-            console.log('term-out: ' + stdout);
+            console.log('chrome-term-out: ' + stdout);
         }
         if (stderr) {
-            console.log('term-err' + stderr);
+            console.log('chrome-term-err' + stderr);
         }
         
         console.log('chrome instance at '+String(port)+' closed!');
-        // TODO: release port & end process
+        // TODO: release port & kill process
     });
     //return result;
 }
@@ -66,7 +68,7 @@ function launch() {
 launch(); console.log('chrome running at '+String(port)+'...');
 
 
-global.domains = [// if 'events' include 'callbacks'
+global.domains = [// if 'events' include 'callbacks' eg: 'ev': [...], 'callbacks': {'evName' = [func () {}, ...]}
     {
         'name': 'Runtime',
         'commands': [
@@ -235,8 +237,11 @@ global.sendCommand = function (msg) {
 
 
 // TODO: get ws address
-var addr = 'http://localhost:'+String(port)+'/json'; console.log(addr);
+var addr = 'http://localhost:'+String(port)+'/json'; console.log('remote-debugging-addr:', addr);
 var tabs = '';
+var wsConnErr = false;
+
+console.log('Connecting to browser...');
 
 getInspectablePages();
 
@@ -251,6 +256,7 @@ function getInspectablePages() {
             var wsAddr;
 
             for (i = 0; i < tabs.length; i++) {
+                // TODO: use url about:blank
                 if (tabs[i].url == 'https://www.google.com/') {
                     // TODO: get socket addr
                     wsAddr = tabs[i].webSocketDebuggerUrl;
@@ -259,13 +265,19 @@ function getInspectablePages() {
             }
             
             if (!global.socket) {
-                wsConn(wsAddr); console.log('current tab:', wsAddr);
+                wsConnErr = false;
+                console.log('current tab:', wsAddr);
+                wsConn(wsAddr);
             }
         });
     }).on('error', function (err) {
-        console.log('Error connecting to chrome instance:', err);
-        console.log('Reconnecting...');
-        setTimeout(getInspectablePages, 10000);
+        if (!wsConnErr) {
+            console.log('Error connecting to chrome instance:', err);
+            console.log('Reconnecting...');
+            wsConnErr = true;
+        }
+
+        setTimeout(getInspectablePages, 100);
     });   
 }
 
@@ -277,24 +289,32 @@ function wsConn(wsAddr) {
             try {
                 global.socket = new WebSocket(addr);
             } catch (err) {
-                console.log('econnrefused. Reconnecting...');
+                if (!wsConnErr) {
+                    console.log('econnrefused. Reconnecting...');
+                    wsConnErr = true;
+                }
+                
                 wsConn(wsAddr);
                 return;
             }
-            
-            addWsListeners();
         }
     } else {
         try {
             global.socket = new WebSocket(addr);
         } catch (err) {
-            console.log('init econnrefused. Reconnecting...');
+            if (!wsConnErr) {
+                console.log('init econnrefused. Reconnecting...');
+                wsConnErr = true;
+            }
+            
             wsConn(wsAddr);
             return;
         }
-        
-        addWsListeners();
     }
+
+    wsConnErr = false;
+    console.log('Connected to browser!');
+    addWsListeners();
 }
 
 function addWsListeners () {
@@ -304,13 +324,14 @@ function addWsListeners () {
         _init(global.domains);
     });
     global.socket.on('close', function (e) {
-        setTimeout(wsConn(global.socket), 5000);
+        console.log('ws-conn-closed! Reconnecting...');
+        setTimeout(wsConn(global.socket), 100);
     });
 
     global.socket.on('error', function (err) {
         console.log('ws-conn-err:', err);
-        console.log('*********Reconnecting**************')
-        setTimeout(wsConn(global.socket), 5000);
+        console.log('Reconnecting...');
+        setTimeout(wsConn(global.socket), 100);
     });
 
     // Listen for messages
@@ -329,6 +350,7 @@ function addWsListeners () {
         var msg = {
             timeStamp: Date.now()
         };
+
         global.loadDetector.send(msg);
     });
 }
@@ -362,7 +384,6 @@ function _init(domains) {
         }
 
         if (domain.hasOwnProperty('results')) {
-            var nan = Number('abc');
             var keys = Object.keys(domain.results);
 
             for (i = 0; i < keys.length; i++) {
@@ -372,7 +393,7 @@ function _init(domains) {
                     'event': 'result'
                 };
 
-                if (Number(key) === nan) {
+                if (isNaN(Number(key))) {
                     l.name = key;
                 }
 
@@ -509,7 +530,7 @@ function loadDetector() {
             this.timeStamp = msg.timeStamp;
 
             if (!this.msgCount) {
-                setTimeout(this._metric.bind(this), 1000);
+                setTimeout(this._metric.bind(this), 100);
                 //this._metric();
                 this.msgCount++;
             }
@@ -530,7 +551,7 @@ function loadDetector() {
                 
                 global.evaluator.init(global.apps);
             } else {
-                setTimeout(this._metric.bind(this), 1000);
+                setTimeout(this._metric.bind(this), 100);
                 /* try {
                     this._metric();
                 } catch (err) {

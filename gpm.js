@@ -220,7 +220,7 @@ exports.app = {
                         if (frame.params.request.url.indexOf(this.patterns[i] + '?') != -1) {
                             var service = this.patterns[i];
                             var requestId = frame.params.requestId;
-                            templates.request[service] = frame.params.request;
+                            global.templates.request[service] = frame.params.request;
 
                             var l = {
                                 'id': id, //global
@@ -239,7 +239,7 @@ exports.app = {
                                             }
                                         };
 
-                                        listeners.add('result', {
+                                        global.listeners.add('result', {
                                             'id': id++,
                                             'event': 'result',
                                             'service': service,
@@ -257,7 +257,7 @@ exports.app = {
                                     }
                                 }
                             }
-                            listeners.add(l.event, l);
+                            global.listeners.add(l.event, l);
                         }
                     }
                 }
