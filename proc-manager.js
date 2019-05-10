@@ -1,5 +1,6 @@
 const WebSocket = require('ws');
 const cp = require('child_process');
+
 var sockets = {
     auth: [], 
     unauth: []
@@ -59,7 +60,7 @@ n_stat.stdout.on('data', function (data) {
                 getUsedPorts(n_statResult);
                 if (usedPorts.length == 30) {
                     n_statDone = true;
-                    // TODO: log used ports to stdout
+
                     console.log(usedPorts);
                     console.log('************************port updates complete***************************');
                 }
@@ -151,6 +152,11 @@ function getMsg(data) {
 }
 
 function createSubprocess(uid, services) {
+    // TODO: --inspect-brk
+    // TODO: --inspect=127.0.0.1:8081
+    /*
+     * First 3 elem have to be debug:param, stack-size, script, uid, service-mod
+     */
     var args = ['--inspect=127.0.0.1:8081', '--stack_size=500000', 'browser.js', uid];
     services.forEach(function (val) {
         switch (val) {
@@ -172,33 +178,34 @@ function createSubprocess(uid, services) {
         }
     });
 
+    // TODO: set command to var args
     var proc = cp.exec(
-        'node --inspect-brk --stack_size=50000 browser.js', 
+        `node ${args[0]} ${args[1]} ${args[2]}`, 
         { 
             maxBuffer: 1024 * 500000,
             env: {
-                'uid': String(uid),
+                'uid': String(args[3]),
                 'port': String(port++),
-                'app': './gpm'
+                'app': args[4]
             }
         }, 
         function (error, stdout, stderr) {
             if (error) {
-                console.log('process error:', error.toString('utf8'));
+                console.log('browser-error:', error.toString('utf8'));
             }
             if (stdout) {
-                console.log('process stdout:', stdout.toString('utf8'));
+                console.log('browser-stdout:', stdout.toString('utf8'));
             }
             if (stderr) {
-                console.log('process stderr:', stderr.toString('utf8'));
+                console.log('browser-stderr:', stderr.toString('utf8'));
             }
         }
     );
     proc.stdin.on('data', function (data) {
-        console.log(data);
+        console.log(String(proc.pid) + 'stdin:', data);
     });
     proc.stdout.on('data', function (data) {
-        console.log(String(proc.pid) + ':', data.toString('utf8'));
+        console.log(String(proc.pid) + 'stdout:', data.toString('utf8'));
     });
     proc.stdout.on('error', function (err) {
         console.log(err.toString('utf8'));
@@ -216,48 +223,39 @@ function createSubprocess(uid, services) {
 }
 
 function getUsedPorts(result) {
-    var index;
     const data = String(result.toString('utf8'));
-    var pos = n_statResultPos;
-    var last = data.lastIndexOf('TCP');
 
-    do {
-        index = data.indexOf('TCP', pos);
+    lines = data.split('\n');
 
-        if (index != -1) {
-            subStart = data.indexOf(':', index) + 1;
-            s = data.indexOf(' ', subStart);
-            t = data.indexOf('\t', subStart);
-            var subEnd;
-            if (s != -1 && t != -1 && s < t) {
-                subEnd = s;
-            } else if (t != -1 && s != -1 && t < s) {
-                subEnd = t;
-            } else if (t == -1) {
-                subEnd = s;
-            } else {
-                subEnd = t;
-            }
-            var strPort = data.substring(subStart, subEnd);
-            var nan = Number('abcd');
-            var port = Number(strPort);
-            if (nan != port) {
-                var unique = true;
-                for (i = 0; i < usedPorts.length; i++) {
-                    if (port == usedPorts[i]) {
-                        unique = false;
-                        break;
+    for (var line of lines) {
+        if (line) {
+            words = line.split(' ');
+            empty = 0;
+
+            do {
+                empty = words.indexOf('');
+                if (empty != -1) {
+                    words.splice(empty, 1);
+                }
+            } while (empty != -1);
+
+            if (words[1]) {
+                words[1] = words[1].substr(words[1].lastIndexOf(':') + 1);
+                var _port = Number(words[1]);
+
+                if (!isNaN(_port)) {
+                    var unique = true;
+                    for (i = 0; i < usedPorts.length; i++) {
+                        if (_port == usedPorts[i]) {
+                            unique = false;
+                            break;
+                        }
+                    }
+                    if (unique) {
+                        usedPorts.push(_port);
                     }
                 }
-                if (unique) {
-                    usedPorts.push(port);
-                }
             }
-            pos = subEnd;
         }
-    } while (index != -1);
-
-    n_statResultPos = pos;
-    //console.log(usedPorts);
-    //console.log('ports updated!');
+    }
 }
