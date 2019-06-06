@@ -229,15 +229,16 @@ global.templates = {
     request: [],
     response: []
 };
-global.loadDetector = new loadDetector();
+//global.loadDetector = new loadDetector();
 global.sendCommand = function (msg) {
     global.socket.send(JSON.stringify(msg));
-    global.loadDetector.reset();
+    //global.loadDetector.reset();
 };
 
 
 // TODO: get ws address
-var addr = 'http://localhost:'+String(port)+'/json'; console.log('remote-debugging-addr:', addr);
+var addr = 'http://localhost:' + String(port) + '/json'; console.log('remote-debugging-addr:', addr);
+console.log('browser-debug-addr:', addr);
 var tabs = '';
 var wsConnErr = false;
 
@@ -322,6 +323,9 @@ function addWsListeners () {
     global.socket.addEventListener('open', function open() {
         console.log('initialization!');
         _init(global.domains);
+        global.browserActive = false;
+        global._debug = [false, '', ''];
+        global._debugLast = global._debug;
     });
     global.socket.on('close', function (e) {
         console.log('ws-conn-closed! Reconnecting...');
@@ -336,6 +340,7 @@ function addWsListeners () {
 
     // Listen for messages
     global.socket.addEventListener('message', function msg(data) {
+        
         var frame = JSON.parse(data.data.toString('utf8')); // {"id":1,"result":{..},"method":"abcd","params":{..}}
         //console.log('frame');
 
@@ -343,15 +348,45 @@ function addWsListeners () {
         if (frame.method == 'Runtime.executionContextCreated') {
             global.execContextId = Number(frame.params.context.id);
         };
+
+        //console.log('frame.method:', frame.method);
+
+        if (frame.method == 'Runtime.consoleAPICalled' && frame.params.type == 'log') {
+            try {
+                for (var a of frame.params.args) {
+                    var _value = a.value;
+
+                    console.log('Runtime.console-value:', _value);
+
+                    if (_value == '_line-XEC' || _value == '_line-XEI') {
+                        global.browserActive = false;
+                        console.log('global.browserActive:', global.browserActive);
+                    }
+                }
+                
+            } catch (err) {
+                console.log('Runtime.consoleAPICalled - valueTypeException at browser.js line 356');
+            }
+        } else {
+            if (frame.method == 'Runtime.consoleAPICalled') {
+                //console.log('Runtime.console-frame:', frame);
+            }
+        }
         
         //console.log(frame);
         global.listeners.emit(frame);
 
-        var msg = {
-            timeStamp: Date.now()
-        };
+        global._debugLast = global._debug;
+        global._debug = [global.browserActive, global.evaluator.locationLast, global.evaluator.location];
+        if (global._debug[0] != global._debugLast[0] &&
+            global._debug[1] != global._debugLast[1] &&
+            global._debug[2] != global._debugLast[2]) {
+            //console.log(_debug);
+        }
 
-        global.loadDetector.send(msg);
+        if (!global.browserActive) {
+            global.evaluator.init(global.apps);
+        }
     });
 }
 
@@ -513,70 +548,5 @@ function apps() {
 
     this.getApps = function () {
         return Object.keys(this.apps);
-    };
-}
-
-function loadDetector() {
-    this.timeStamp = null;
-    this.time = null;
-    this.active = false;
-    this.msgCount = 0;
-
-    this.send = function (msg) {
-        if (!this.msgCount && !this.active) {
-            this.activate();
-        }
-        if (this.active) {
-            this.timeStamp = msg.timeStamp;
-
-            if (!this.msgCount) {
-                setTimeout(this._metric.bind(this), 100);
-                //this._metric();
-                this.msgCount++;
-            }
-        }
-    };
-
-    this._metric = function () {
-        if (this.active) {
-            var now = Date.now();
-            var t = (now - this.timeStamp) / 1000;
-
-            if (t >= 0.5) {
-                this.disable();
-
-                this.time = t
-                console.log('Page loaded in', this.time);
-                this.msgCount = 0;
-                
-                global.evaluator.init(global.apps);
-            } else {
-                setTimeout(this._metric.bind(this), 100);
-                /* try {
-                    this._metric();
-                } catch (err) {
-                    console.log(err.toString('utf8'));
-                } */
-            }
-        }
-    };
-
-    this.activate = function () {
-        if (!this.active && !this.msgCount) {
-            this.active = true;
-            console.log('loadDetector active:', this.active);
-        }
-    };
-
-    this.disable = function () {
-        if (this.active && this.msgCount) {
-            this.active = false;
-            this.msgCount = 0;
-            console.log('loadDetector active:', this.active);
-        }
-    };
-
-    this.reset = function () {
-        this.msgCount = 0;
     };
 }

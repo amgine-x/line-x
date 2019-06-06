@@ -107,7 +107,8 @@ function start() {
     wss.on('connection', function (ws) {
         var ident = {
             type: 'ident',
-            uid: 'unique_id_1234'
+            // TODO: generate unique
+            uid: 'unique_id_1234-x'
         };
         ws.uid = ident.uid;
         ws.send(getBuffer(ident));
@@ -157,7 +158,7 @@ function createSubprocess(uid, services) {
     /*
      * First 3 elem have to be debug:param, stack-size, script, uid, service-mod
      */
-    var args = ['--inspect=127.0.0.1:8081', '--stack_size=500000', 'browser.js', uid];
+    var args = ['--inspect-brk', '--stack_size=500000', 'browser.js', uid];
     services.forEach(function (val) {
         switch (val) {
             case 'Google Play Music':

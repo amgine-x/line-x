@@ -1,7 +1,9 @@
 ﻿exports.evaluator = function evaluator() {
     // set listener
     this.location = null;
+    this.locationLast = null;
     this.active = false;
+    this.urlIdentifiers = [];
 
     this.init = function (apps) {
         var app = apps.getCurrentApp();
@@ -48,41 +50,54 @@
                 }
             }
 
-            switch (page.phase) {
-                case -1:
-                    apps.next();
-                    
-                    var msg = {
-                        'id': 1,
-                        'method': 'Network.getCookies'
-                    };
-                    global.sendCommand(msg);
-                    break;
-                default:
-                    if (page.listener) {
-                        page.listener.id = _id;
-                        global.listeners.add(page.listener.event, page.listener);
-                    }
-            }
+            if (page) {
+                /*debugger;*/
+                switch (page.phase) {
+                    case -1:
+                        var msg = {
+                            'id': 1,
+                            'method': 'Network.getCookies'
+                        };
+                        global.sendCommand(msg);
 
-            this.location = null;
-
-            msg = {
-                'id': _id,
-                'method': 'Runtime.evaluate',
-                'params': {
-                    'expression': page.exp,
-                    'awaitPromise': false,
-                    'generatePreview': true,
-                    'includeCommandLineAPI': true,
-                    'objectGroup': 'console',
-                    'returnByValue': false,
-                    'silent': false,
-                    'userGesture': true
+                        //apps.next();
+                        break;
+                    default:
+                        if (page.listener) {
+                            page.listener.id = _id;
+                            global.listeners.add(page.listener.event, page.listener);
+                        }
                 }
-            };
 
-            global.sendCommand(msg);
+                this.locationLast = this.location;
+                this.location = null;
+
+                msg = {
+                    'id': _id,
+                    'method': 'Runtime.evaluate',
+                    'params': {
+                        'expression': page.exp,
+                        'awaitPromise': false,
+                        'generatePreview': true,
+                        'includeCommandLineAPI': true,
+                        'objectGroup': 'console',
+                        'returnByValue': false,
+                        'silent': false,
+                        'userGesture': true
+                    }
+                };
+
+                
+                /*debugger;*/
+                global.browserActive = true;
+                console.log('global.browserActive:', global.browserActive);
+
+                console.log('Runtime.evaluate:', page, 'at', this.locationLast, Date.now());
+                global.sendCommand(msg);
+            } else {
+                this.location = null;
+                this._default();
+            }
         }
     };
 
@@ -97,7 +112,17 @@
                 'event': 'result',
                 'callback': function (frame) {
                     if (frame.result.result.type == 'string') {
-                        global.evaluator.location = frame.result.result.value;
+                        var _url = frame.result.result.value;
+                        console.log(_url, Date.now());
+
+                        if (_url == 'about:blank' || 
+                            _url.includes('https://www.google.com/' || 
+                            _url == this.locationLast)
+                        ) {
+                            global.evaluator._default();
+                        } else {
+                            global.evaluator.location = frame.result.result.value;
+                        }
                     }
                 }
             });
