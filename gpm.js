@@ -175,7 +175,7 @@ var _signin_ident = {
     },
 
     // TODO: get value
-    call: "_signin_ident('sd.part.si.2019', 'https://accounts.google.com/signin/v2/identifier?');"
+    call: "_signin_ident('success.irabor.26', 'https://accounts.google.com/signin/v2/identifier?');"
 }
 
 var _signin_pwd = {
@@ -256,7 +256,7 @@ var _signin_pwd = {
         }
     }, // TODO: get value
 
-    call: "_signin_pwd('GnssSbrr1I', 'https://accounts.google.com/signin/v2/sl/pwd?');"
+    call: "_signin_pwd('GnssSbrr1I%', 'https://accounts.google.com/signin/v2/sl/pwd?');"
 }
 
 var _signin_chooser = {
