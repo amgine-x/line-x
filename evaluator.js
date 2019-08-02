@@ -113,7 +113,7 @@
                 'callback': function (frame) {
                     if (frame.result.result.type == 'string') {
                         var _url = frame.result.result.value;
-                        console.log(_url, Date.now());
+                        //console.log(_url, Date.now());
 
                         if (_url == 'about:blank' || 
                             _url.includes('https://www.google.com/' || 
@@ -121,6 +121,7 @@
                         ) {
                             global.evaluator._default();
                         } else {
+                            console.log(_url, Date.now());
                             global.evaluator.location = frame.result.result.value;
                         }
                     }
