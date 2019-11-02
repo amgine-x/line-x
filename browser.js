@@ -132,6 +132,7 @@ global.evaluator = new eval.evaluator(); console.log('evaluator:', evaluator);
 global.apps = new apps();
 global.gplaymusic = gpm.app;
 
+// TODO: include apps here
 if (global.gplaymusic) {
     global.apps.add(global.gplaymusic);
 }

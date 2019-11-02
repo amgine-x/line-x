@@ -818,6 +818,23 @@ exports.app = {
     /*
      * include url identifiers in evaluator array
      */
+    init: function () {
+        var listener = {
+            'name': 'init',
+            'event': 'Network.responseReceived',
+            'callback': function (frame) {
+                var seq = global.apps.getCurrentApp();
+                var url = frame.response.url;
+
+                for (var i = 0; i < seq.length; i++) {
+                    if (seq[i].url == url) {
+                        
+                    }
+                }
+            }
+        }
+        global.listeners.add(listener.event, listener);
+    },
     sequence: [
         { //listener: {'id': 1, 'event': 'result', 'callback': function(e){}}
             name: 'homepage',
@@ -921,3 +938,5 @@ exports.app = {
 
 
 //apps.add(app);
+
+// TODO: clear listeners and load next app sequence
