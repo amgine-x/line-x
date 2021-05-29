@@ -17,6 +17,6 @@
   },
   "homepage": "https://github.com/oirabor/untitled#readme",
   "dependencies": {
-    "ws": "^6.1.0"
+    "ws": "^7.4.6"
   }
 }
